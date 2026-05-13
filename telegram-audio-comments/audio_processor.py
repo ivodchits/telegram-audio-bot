@@ -136,7 +136,9 @@ def stitch(session: dict, progress_cb=None) -> dict:
     result_mp3 = f"result_{session_id}.mp3"
 
     result.export(str(store.audio_path(result_ogg)), format="ogg", codec="libopus")
-    result.export(str(store.audio_path(result_mp3)), format="mp3", parameters=["-q:a", "4"])
+    # -q:a 6 (~96 kbps VBR) keeps a 40-min stitched result under the
+    # Telegram Bot API ~50 MB outbound cap.
+    result.export(str(store.audio_path(result_mp3)), format="mp3", parameters=["-q:a", "6"])
     _emit(1.0)
 
     return {
@@ -152,7 +154,7 @@ def convert_to_mp3(input_filename: str, output_filename: str) -> str:
     """Convert any audio file to MP3 for web playback."""
     audio = load_audio(input_filename)
     out_path = store.audio_path(output_filename)
-    audio.export(str(out_path), format="mp3", parameters=["-q:a", "4"])
+    audio.export(str(out_path), format="mp3", parameters=["-q:a", "6"])
     return output_filename
 
 

@@ -21,5 +21,5 @@ services:
       - ./data:/app/data
     restart: unless-stopped
     # Give the app long enough to drain in-flight stitch jobs before SIGKILL.
-    # Must be ≥ SHUTDOWN_DRAIN_SECONDS in the app (default 30s).
-    stop_grace_period: 45s
+    # Must be ≥ SHUTDOWN_DRAIN_SECONDS in the app (default 120s).
+    stop_grace_period: 150s

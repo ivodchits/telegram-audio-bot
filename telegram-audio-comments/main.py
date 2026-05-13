@@ -57,8 +57,8 @@ DEV_MODE = os.getenv("DEV_MODE", "").lower() in ("1", "true", "yes")
 MAX_INIT_DATA_AGE_SECONDS = int(os.getenv("MAX_INIT_DATA_AGE_SECONDS", "86400"))  # 24h
 
 # Resource limits
-MAX_AUDIO_SECONDS = int(os.getenv("MAX_AUDIO_SECONDS", "600"))
-MAX_AUDIO_MB = int(os.getenv("MAX_AUDIO_MB", "25"))
+MAX_AUDIO_SECONDS = int(os.getenv("MAX_AUDIO_SECONDS", "2400"))
+MAX_AUDIO_MB = int(os.getenv("MAX_AUDIO_MB", "50"))
 MAX_RECORDING_MB = int(os.getenv("MAX_RECORDING_MB", "5"))
 LONG_RESULT_THRESHOLD_MS = 10 * 60 * 1000
 
@@ -960,6 +960,20 @@ async def api_delete_recording(request: web.Request):
 _stitch_jobs: dict[str, dict] = {}
 _stitch_jobs_lock = asyncio.Lock()
 
+# Bound concurrent stitches across the whole process. pydub holds the entire
+# decoded PCM of both the original and the growing result in RAM, so two
+# 40-min jobs at once can push peak RSS into the gigabytes and OOM the host.
+# Lazy-initialized so the semaphore binds to the running event loop.
+STITCH_MAX_PARALLEL = max(1, int(os.getenv("STITCH_MAX_PARALLEL", "1")))
+_stitch_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_stitch_semaphore() -> asyncio.Semaphore:
+    global _stitch_semaphore
+    if _stitch_semaphore is None:
+        _stitch_semaphore = asyncio.Semaphore(STITCH_MAX_PARALLEL)
+    return _stitch_semaphore
+
 # In-flight task tracking: we keep strong references so tasks don't get
 # garbage-collected mid-run (asyncio docs explicitly warn about this) and so
 # the shutdown path can wait for them to finish.
@@ -975,7 +989,7 @@ STITCH_JOB_TTL_SECONDS = int(os.getenv("STITCH_JOB_TTL_SECONDS", "300"))
 # How long graceful shutdown waits for in-flight stitch jobs to finish before
 # giving up and letting the process exit. Keep this comfortably above the
 # expected worst-case stitch time (a few seconds per minute of audio).
-SHUTDOWN_DRAIN_SECONDS = int(os.getenv("SHUTDOWN_DRAIN_SECONDS", "30"))
+SHUTDOWN_DRAIN_SECONDS = int(os.getenv("SHUTDOWN_DRAIN_SECONDS", "120"))
 
 
 async def _evict_job_later(session_id: str):
@@ -1072,7 +1086,9 @@ async def _run_stitch_job(session_id: str, rid: str):
                 session = await _wait_for_transcripts(session_id, TRANSCRIBE_WAIT_SECONDS)
 
             logger.info(f"session={session_id}: stitch starting ({len(session['recordings'])} rec)")
-            result = await asyncio.to_thread(audio_processor.stitch, session, progress_cb)
+            sem = _get_stitch_semaphore()
+            async with sem:
+                result = await asyncio.to_thread(audio_processor.stitch, session, progress_cb)
 
             session = await store.update_session(session_id, **result)
             if not session:

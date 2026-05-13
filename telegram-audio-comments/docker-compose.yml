@@ -1,0 +1,25 @@
+# Local development compose file.
+#
+# Usage:
+#   1. Copy .env.example to .env and fill in BOT_TOKEN + BASE_URL
+#      (BASE_URL is whatever ngrok / your reverse proxy gives you).
+#   2. Optional: run `ngrok http 8080` in a separate terminal.
+#   3. `docker compose up` (or `docker compose up --build` after a code change).
+
+services:
+  bot:
+    build: .
+    image: telegram-audio-comments:dev
+    env_file: .env
+    # Override DATA_DIR so it lands on the bind-mounted volume rather than
+    # vanishing with the container.
+    environment:
+      DATA_DIR: /app/data
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    # Give the app long enough to drain in-flight stitch jobs before SIGKILL.
+    # Must be ≥ SHUTDOWN_DRAIN_SECONDS in the app (default 30s).
+    stop_grace_period: 45s

@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Audio Comments</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --bg-card: #16213e;
+    --bg-elevated: #1f3056;
+    --text: #eee;
+    --text-dim: #8892a4;
+    --accent: #4fc3f7;
+    --accent-glow: rgba(79, 195, 247, 0.25);
+    --comment-color: #66bb6a;
+    --comment-glow: rgba(102, 187, 106, 0.3);
+    --inherited-color: #ff9800;
+    --record-color: #ef5350;
+    --record-glow: rgba(239, 83, 80, 0.4);
+    --radius: 14px;
+    --radius-sm: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+    padding-bottom: 100px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .header .subtitle {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  /* Player Section */
+  .player-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .time-display {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .timeline-container {
+    position: relative;
+    height: 48px;
+    margin-bottom: 16px;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  .timeline-track {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 6px;
+    transform: translateY(-50%);
+    background: var(--bg-elevated);
+    border-radius: 3px;
+    overflow: visible;
+  }
+
+  .timeline-progress {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  .timeline-marker {
+    position: absolute;
+    top: -8px;
+    width: 3px;
+    height: 22px;
+    border-radius: 1.5px;
+    transform: translateX(-50%);
+    z-index: 2;
+    opacity: 0.85;
+  }
+  .timeline-marker.comment { background: var(--comment-color); }
+  .timeline-marker.inherited { background: var(--inherited-color); opacity: 0.5; }
+  .timeline-marker.pending { background: var(--accent); }
+
+  .timeline-thumb {
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px var(--accent-glow);
+    z-index: 5;
+    left: 0%;
+  }
+
+  .player-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  .btn-control {
+    background: none;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  .btn-control:active { background: rgba(255,255,255,0.1); }
+  .btn-control svg { width: 24px; height: 24px; fill: currentColor; }
+  .btn-play svg { width: 40px; height: 40px; }
+
+  .btn-skip {
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .btn-skip svg { width: 20px; height: 20px; fill: var(--text-dim); }
+
+  /* Record Button */
+  .record-section {
+    margin-bottom: 16px;
+  }
+
+  .btn-record {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.2s;
+  }
+  .btn-record.ready {
+    background: linear-gradient(135deg, var(--record-color), #c62828);
+    color: white;
+  }
+  .btn-record.recording {
+    background: var(--record-color);
+    color: white;
+    animation: pulse-record 1.2s infinite;
+  }
+  .btn-record:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-record .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+  }
+  .btn-record.recording .dot {
+    background: white;
+    animation: blink 0.8s infinite;
+  }
+
+  @keyframes pulse-record {
+    0%, 100% { box-shadow: 0 0 0 0 var(--record-glow); }
+    50% { box-shadow: 0 0 0 12px transparent; }
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Recordings List */
+  .recordings-list {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .recordings-list h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-dim);
+  }
+  .recording-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .recording-item:last-child { margin-bottom: 0; }
+  .recording-item .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .recording-item .info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .recording-item .transcript {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.35;
+    word-wrap: break-word;
+    padding-left: 16px;
+  }
+  .recording-item .transcript.pending {
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .recording-item .badge {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--comment-color);
+  }
+  .recording-item .ts {
+    color: var(--accent);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .recording-item .dur {
+    color: var(--text-dim);
+  }
+  .recording-item .actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .btn-icon {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 16px;
+    line-height: 1;
+    min-width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-icon:active { background: rgba(255,255,255,0.08); }
+  .btn-icon.playing { color: var(--accent); }
+  .btn-icon.delete:active { background: rgba(239,83,80,0.2); color: var(--record-color); }
+
+  /* Done Button */
+  .btn-done {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--comment-color), #2e7d32);
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: opacity 0.2s;
+    margin-bottom: 16px;
+  }
+  .btn-done:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Listen Mode Controls */
+  .listen-mode-controls {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .listen-mode-controls h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-dim);
+  }
+  .mode-toggle {
+    display: flex;
+    gap: 8px;
+  }
+  .mode-btn {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .mode-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(79, 195, 247, 0.1);
+  }
+
+  .comment-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .btn-nav {
+    background: var(--bg-elevated);
+    border: none;
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .btn-nav:disabled { opacity: 0.3; }
+  .btn-nav:active { background: var(--accent); color: var(--bg); }
+
+  /* Status / Loading */
+  .status-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 46, 0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    gap: 16px;
+  }
+  .status-overlay.hidden { display: none; }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--bg-elevated);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status-text {
+    font-size: 15px;
+    color: var(--text-dim);
+  }
+  .status-emoji {
+    font-size: 48px;
+  }
+
+  /* Recording timer overlay */
+  .recording-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 46, 0.95);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 90;
+    gap: 20px;
+  }
+  .recording-overlay.hidden { display: none; }
+  .recording-timer {
+    font-size: 48px;
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+    color: var(--record-color);
+  }
+  .recording-label {
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  .recording-at {
+    font-size: 13px;
+    color: var(--accent);
+  }
+  .btn-stop-recording {
+    width: 72px;
+    height: 72px;
+    border: none;
+    border-radius: 50%;
+    background: var(--record-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 30px var(--record-glow);
+    margin-top: 10px;
+  }
+  .btn-stop-recording .stop-icon {
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 4px;
+  }
+
+  /* Utility */
+  .empty-state {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Status Overlay -->
+<div id="statusOverlay" class="status-overlay">
+  <div class="spinner"></div>
+  <div class="status-text" id="statusText">Loading audio...</div>
+</div>
+
+<!-- Recording Overlay -->
+<div id="recordingOverlay" class="recording-overlay hidden">
+  <div class="recording-label">🔴 Recording comment</div>
+  <div class="recording-at" id="recordingAt">at 0:00</div>
+  <div class="recording-timer" id="recordingTimer">0:00</div>
+  <button class="btn-stop-recording" id="btnStopRecording" onclick="app.stopRecording()">
+    <div class="stop-icon"></div>
+  </button>
+  <div class="recording-label" style="margin-top: 8px">Tap to stop</div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <h1 id="headerTitle">🎙️ Comment on Audio</h1>
+  <div class="subtitle" id="headerSubtitle">Listen and record your comments</div>
+</div>
+
+<!-- Player -->
+<div class="player-card">
+  <div class="time-display">
+    <span id="timeCurrent">0:00</span>
+    <span id="timeDuration">0:00</span>
+  </div>
+  <div class="timeline-container" id="timeline">
+    <div class="timeline-track" id="timelineTrack">
+      <div class="timeline-progress" id="timelineProgress"></div>
+    </div>
+    <div class="timeline-thumb" id="timelineThumb"></div>
+  </div>
+  <div class="player-controls">
+    <button class="btn-control btn-skip" onclick="app.skip(-5)">
+      <svg viewBox="0 0 24 24"><path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+      <span>5s</span>
+    </button>
+    <button class="btn-control btn-play" id="btnPlay" onclick="app.togglePlay()">
+      <svg id="iconPlay" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      <svg id="iconPause" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    </button>
+    <button class="btn-control btn-skip" onclick="app.skip(5)">
+      <svg viewBox="0 0 24 24"><path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/></svg>
+      <span>5s</span>
+    </button>
+  </div>
+</div>
+
+<!-- Comment Mode: Record Button -->
+<div class="record-section" id="commentControls" style="display:none">
+  <button class="btn-record ready" id="btnRecord" onclick="app.startRecording()">
+    <span class="dot"></span>
+    Record Comment Here
+  </button>
+</div>
+
+<!-- Listen Mode Controls -->
+<div class="listen-mode-controls" id="listenControls" style="display:none">
+  <h3>Playback Mode</h3>
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="modeSkip" onclick="app.setListenMode('skip')">
+      ⏭️ Skip to Comments
+    </button>
+    <button class="mode-btn" id="modeFull" onclick="app.setListenMode('full')">
+      🔊 Full Listen
+    </button>
+  </div>
+  <div class="comment-nav" id="commentNav">
+    <button class="btn-nav" onclick="app.prevComment()">◀ Prev</button>
+    <span id="commentCounter">0 / 0</span>
+    <button class="btn-nav" onclick="app.nextComment()">Next ▶</button>
+  </div>
+</div>
+
+<!-- Recordings List -->
+<div class="recordings-list" id="recordingsList" style="display:none">
+  <h3>Your Comments (<span id="commentCount">0</span>)</h3>
+  <div id="recordingsContainer"></div>
+</div>
+
+<!-- Done Button -->
+<button class="btn-done" id="btnDone" onclick="app.finish()" style="display:none">
+  ✅ Stitch & Send
+</button>
+
+<script>
+const API = window.location.origin;
+const tg = window.Telegram?.WebApp;
+
+// Telegram WebApp initData — proves to the API which user is making the request.
+// We attach it as a header on fetch and as a query string on <audio> src
+// (audio elements can't send custom headers).
+const INIT_DATA = tg?.initData || '';
+
+function apiFetch(url, opts = {}) {
+  const headers = new Headers(opts.headers || {});
+  if (INIT_DATA) headers.set('X-Telegram-Init-Data', INIT_DATA);
+  return fetch(url, { ...opts, headers });
+}
+
+function audioUrl(sessionId, which) {
+  const u = `${API}/api/audio/${sessionId}/${which}`;
+  return INIT_DATA ? `${u}?tgInitData=${encodeURIComponent(INIT_DATA)}` : u;
+}
+
+function recordingUrl(sessionId, index) {
+  const u = `${API}/api/session/${sessionId}/recording/${index}`;
+  return INIT_DATA ? `${u}?tgInitData=${encodeURIComponent(INIT_DATA)}` : u;
+}
+
+class AudioCommentApp {
+  constructor() {
+    this.mode = 'comment'; // 'comment' or 'listen'
+    this.listenMode = 'skip'; // 'skip' or 'full'
+    this.sessionId = null;
+    this.session = null;
+
+    // Audio
+    this.audio = new Audio();
+    this.audio.preload = 'auto';
+    this.isPlaying = false;
+    this.duration = 0;
+
+    // Recording
+    this.mediaRecorder = null;
+    this.recordedChunks = [];
+    this.isRecording = false;
+    this.recordStartTimestamp = 0; // position in audio when recording started
+    this.recordingStartTime = 0;  // wall clock when recording started
+    this.recordingTimerInterval = null;
+
+    // Recordings list (local state before stitching)
+    this.recordings = [];
+
+    // Per-recording preview-play (5.1). Single shared element so only one
+    // preview plays at a time and starting a new one stops the old.
+    this.previewAudio = new Audio();
+    this.previewingIndex = -1;
+
+    // Set when we're inside Telegram with valid initData — switches the
+    // "Stitch & Send" affordance from a custom DOM button to tg.MainButton.
+    this.useTgMainButton = false;
+
+    // Listen mode state
+    this.markers = [];
+    this.currentCommentIndex = -1;
+    this.skipScheduled = false;
+
+    // Transcripts (7.1/7.2). Whether the server is running Whisper at all,
+    // and the active polling loop while recordings still lack transcripts.
+    this.transcriptionEnabled = false;
+    this._transcriptPollTimer = null;
+    this._transcriptPollAttempts = 0;
+
+    // Timeline interaction
+    this.isDragging = false;
+
+    this._initAudioEvents();
+    this._initPreviewEvents();
+    this._initTimelineEvents();
+  }
+
+  async init() {
+    // Parse URL params
+    const params = new URLSearchParams(window.location.search);
+    this.sessionId = params.get('session');
+    this.mode = params.get('mode') || 'comment';
+
+    if (!this.sessionId) {
+      this._showStatus('❌', 'No session ID provided');
+      return;
+    }
+
+    // Telegram WebApp setup
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      // Apply Telegram theme if available
+      if (tg.themeParams?.bg_color) {
+        document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color);
+      }
+      // Only use the native MainButton when running inside Telegram (initData
+      // is non-empty). Outside Telegram (browser preview), MainButton is a
+      // no-op stub and we fall back to the in-page green button.
+      if (INIT_DATA && tg.MainButton) {
+        this.useTgMainButton = true;
+        tg.MainButton.setText('Stitch & Send');
+        tg.MainButton.onClick(() => this.finish());
+      }
+    }
+
+    // Load session
+    this._showStatus(null, 'Loading session...');
+    try {
+      const resp = await apiFetch(`${API}/api/session/${this.sessionId}`);
+      if (!resp.ok) throw new Error('Session not found');
+      this.session = await resp.json();
+      this.transcriptionEnabled = !!this.session.transcription_enabled;
+    } catch (e) {
+      this._showStatus('❌', 'Failed to load session');
+      return;
+    }
+
+    // Load audio
+    this._showStatus(null, 'Loading audio...');
+    const audioType = (this.mode === 'listen' && this.session.has_result) ? 'result' : 'original';
+    this.audio.src = audioUrl(this.sessionId, audioType);
+
+    try {
+      await new Promise((resolve, reject) => {
+        this.audio.oncanplaythrough = resolve;
+        this.audio.onerror = () => reject(new Error('Audio load failed'));
+        this.audio.load();
+        // Timeout after 15s
+        setTimeout(() => reject(new Error('Audio load timeout')), 15000);
+      });
+    } catch (e) {
+      // Retry with a different event
+      await new Promise((resolve, reject) => {
+        this.audio.onloadeddata = resolve;
+        setTimeout(() => reject(new Error('Audio load failed')), 10000);
+      }).catch(() => {
+        this._showStatus('❌', 'Failed to load audio. Try again.');
+        return;
+      });
+    }
+
+    this.duration = this.audio.duration * 1000;
+    document.getElementById('timeDuration').textContent = this._formatTime(this.duration);
+
+    // Set up UI based on mode
+    this._setupMode();
+
+    // Populate existing recordings/markers
+    if (this.mode === 'comment') {
+      this.recordings = this.session.recordings || [];
+      this._renderRecordings();
+      this._renderMarkers();
+    } else {
+      this.markers = this.session.result_markers || [];
+      this._renderMarkers();
+      this._updateCommentNav();
+    }
+
+    // Hide loading
+    document.getElementById('statusOverlay').classList.add('hidden');
+  }
+
+  _setupMode() {
+    if (this.mode === 'comment') {
+      document.getElementById('headerTitle').textContent = '🎙️ Comment on Audio';
+      document.getElementById('headerSubtitle').textContent = 'Listen and tap Record to add comments';
+      document.getElementById('commentControls').style.display = 'block';
+      document.getElementById('listenControls').style.display = 'none';
+      document.getElementById('recordingsList').style.display = 'block';
+      document.getElementById('btnDone').style.display = 'none';
+    } else {
+      document.getElementById('headerTitle').textContent = '🎧 Audio with Comments';
+      const n = (this.session.result_markers || []).length;
+      document.getElementById('headerSubtitle').textContent = `${n} comment(s) embedded`;
+      document.getElementById('commentControls').style.display = 'none';
+      document.getElementById('listenControls').style.display = 'block';
+      document.getElementById('recordingsList').style.display = 'none';
+      document.getElementById('btnDone').style.display = 'none';
+      if (this.useTgMainButton) tg.MainButton.hide();
+    }
+  }
+
+  // ─── Audio Playback ────────────────────────────────────────────────
+
+  _initAudioEvents() {
+    this.audio.addEventListener('timeupdate', () => {
+      if (this.isDragging) return;
+      this._updateTimeline();
+      
+      // In listen/skip mode, handle auto-skipping
+      if (this.mode === 'listen' && this.listenMode === 'skip' && this.isPlaying) {
+        this._handleSkipMode();
+      }
+    });
+
+    this.audio.addEventListener('ended', () => {
+      this.isPlaying = false;
+      this._updatePlayButton();
+      this.currentCommentIndex = -1;
+      this._updateCommentNav();
+    });
+
+    this.audio.addEventListener('play', () => {
+      this.isPlaying = true;
+      this._updatePlayButton();
+    });
+
+    this.audio.addEventListener('pause', () => {
+      this.isPlaying = false;
+      this._updatePlayButton();
+    });
+  }
+
+  togglePlay() {
+    if (this.isPlaying) {
+      this.audio.pause();
+    } else {
+      // In skip mode, if at beginning, jump to first comment context
+      if (this.mode === 'listen' && this.listenMode === 'skip' && this.audio.currentTime < 0.5 && this.markers.length > 0) {
+        this.currentCommentIndex = 0;
+        const contextMs = (this.session.context_seconds || 5) * 1000;
+        const seekTo = Math.max(0, this.markers[0].start_ms - contextMs);
+        this.audio.currentTime = seekTo / 1000;
+      }
+      this.audio.play().catch(e => console.warn('Play failed:', e));
+    }
+  }
+
+  skip(seconds) {
+    this.audio.currentTime = Math.max(0, Math.min(
+      this.audio.duration,
+      this.audio.currentTime + seconds
+    ));
+    this._updateTimeline();
+  }
+
+  _updateTimeline() {
+    const currentMs = this.audio.currentTime * 1000;
+    const pct = this.duration > 0 ? (currentMs / this.duration) * 100 : 0;
+    document.getElementById('timelineProgress').style.width = pct + '%';
+    document.getElementById('timelineThumb').style.left = pct + '%';
+    document.getElementById('timeCurrent').textContent = this._formatTime(currentMs);
+  }
+
+  _updatePlayButton() {
+    document.getElementById('iconPlay').style.display = this.isPlaying ? 'none' : 'block';
+    document.getElementById('iconPause').style.display = this.isPlaying ? 'block' : 'none';
+  }
+
+  // ─── Timeline Interaction ──────────────────────────────────────────
+
+  _initTimelineEvents() {
+    const timeline = document.getElementById('timeline');
+
+    const seek = (e) => {
+      const rect = timeline.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      this.audio.currentTime = pct * this.audio.duration;
+      this._updateTimeline();
+    };
+
+    timeline.addEventListener('mousedown', (e) => {
+      this.isDragging = true;
+      seek(e);
+    });
+    timeline.addEventListener('touchstart', (e) => {
+      this.isDragging = true;
+      seek(e);
+    }, { passive: true });
+
+    document.addEventListener('mousemove', (e) => { if (this.isDragging) seek(e); });
+    document.addEventListener('touchmove', (e) => { if (this.isDragging) seek(e); }, { passive: true });
+
+    document.addEventListener('mouseup', () => { this.isDragging = false; });
+    document.addEventListener('touchend', () => { this.isDragging = false; });
+  }
+
+  // ─── Recording ─────────────────────────────────────────────────────
+
+  async startRecording() {
+    // Pause playback (main + any preview) so the mic isn't picking up speaker.
+    this.audio.pause();
+    if (this.previewingIndex !== -1) {
+      this.previewAudio.pause();
+      this.previewingIndex = -1;
+    }
+    this.recordStartTimestamp = Math.round(this.audio.currentTime * 1000);
+
+    // Request microphone
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      alert('Microphone access is required to record comments. Please allow it and try again.');
+      return;
+    }
+
+    // Determine supported MIME type
+    let mimeType = 'audio/webm;codecs=opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'audio/webm';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/mp4';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = ''; // Let browser choose
+        }
+      }
+    }
+
+    this.recordedChunks = [];
+    const options = mimeType ? { mimeType } : {};
+    
+    try {
+      this.mediaRecorder = new MediaRecorder(stream, options);
+    } catch (e) {
+      this.mediaRecorder = new MediaRecorder(stream);
+    }
+
+    this.mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) this.recordedChunks.push(e.data);
+    };
+
+    this.mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      this._handleRecordingComplete();
+    };
+
+    this.mediaRecorder.start(100); // collect chunks every 100ms
+    this.isRecording = true;
+    this.recordingStartTime = Date.now();
+
+    // Show recording overlay
+    document.getElementById('recordingOverlay').classList.remove('hidden');
+    document.getElementById('recordingAt').textContent = `at ${this._formatTime(this.recordStartTimestamp)}`;
+    this._startRecordingTimer();
+  }
+
+  stopRecording() {
+    if (!this.isRecording || !this.mediaRecorder) return;
+    this.mediaRecorder.stop();
+    this.isRecording = false;
+    this._stopRecordingTimer();
+    document.getElementById('recordingOverlay').classList.add('hidden');
+  }
+
+  async _handleRecordingComplete() {
+    const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
+    const blob = new Blob(this.recordedChunks, { type: mimeType });
+    const durationMs = Date.now() - this.recordingStartTime;
+
+    if (blob.size < 100 || durationMs < 300) {
+      // Too short, discard
+      return;
+    }
+
+    // Show uploading status
+    this._showStatus(null, 'Uploading comment...');
+
+    try {
+      const formData = new FormData();
+      formData.append('timestamp_ms', this.recordStartTimestamp.toString());
+      const ext = mimeType.includes('mp4') ? 'm4a' : 'webm';
+      formData.append('audio', blob, `recording.${ext}`);
+
+      const resp = await apiFetch(`${API}/api/session/${this.sessionId}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!resp.ok) throw new Error('Upload failed');
+      const result = await resp.json();
+
+      // Add to local recordings
+      this.recordings.push({
+        timestamp_ms: this.recordStartTimestamp,
+        duration_ms: result.recording.duration_ms,
+        index: result.recording.index,
+      });
+      this.recordings.sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+
+      this._renderRecordings();
+      this._renderMarkers();
+
+    } catch (e) {
+      console.error('Upload failed:', e);
+      alert('Failed to upload recording. Please try again.');
+    }
+
+    document.getElementById('statusOverlay').classList.add('hidden');
+  }
+
+  _startRecordingTimer() {
+    const timerEl = document.getElementById('recordingTimer');
+    this.recordingTimerInterval = setInterval(() => {
+      const elapsed = Date.now() - this.recordingStartTime;
+      timerEl.textContent = this._formatTime(elapsed);
+    }, 100);
+  }
+
+  _stopRecordingTimer() {
+    clearInterval(this.recordingTimerInterval);
+  }
+
+  // ─── Recordings List ───────────────────────────────────────────────
+
+  _renderRecordings() {
+    const container = document.getElementById('recordingsContainer');
+    const countEl = document.getElementById('commentCount');
+    countEl.textContent = this.recordings.length;
+
+    if (this.recordings.length === 0) {
+      container.innerHTML = '<div class="empty-state">No comments yet. Play the audio and tap Record!</div>';
+      this._updateFinishButton();
+      return;
+    }
+
+    container.innerHTML = this.recordings.map((rec, i) => {
+      const hasT = typeof rec.transcript === 'string' && rec.transcript.length > 0;
+      // null/undefined while the server-side Whisper job is still running.
+      // Only show the spinner-y placeholder if transcription is actually on,
+      // otherwise the line just disappears.
+      const showPending = !hasT && this.transcriptionEnabled;
+      const transcriptHtml = hasT
+        ? `<div class="transcript">${this._escapeHtml(rec.transcript)}</div>`
+        : (showPending ? `<div class="transcript pending">Transcribing…</div>` : '');
+      return `
+        <div class="recording-item">
+          <div class="row">
+            <div class="info">
+              <div class="badge"></div>
+              <span class="ts">${this._formatTime(rec.timestamp_ms)}</span>
+              <span class="dur">(${this._formatTime(rec.duration_ms)})</span>
+            </div>
+            <div class="actions">
+              <button class="btn-icon" data-preview-btn="${i}"
+                      onclick="app.togglePreview(${i})" title="Play">▶</button>
+              <button class="btn-icon" onclick="app.reRecord(${i})" title="Re-record">↻</button>
+              <button class="btn-icon delete" onclick="app.deleteRecording(${i})" title="Delete">✕</button>
+            </div>
+          </div>
+          ${transcriptHtml}
+        </div>
+      `;
+    }).join('');
+
+    this._updateFinishButton();
+    this._updatePreviewButtons();
+    this._maybeStartTranscriptPoll();
+  }
+
+  _updateFinishButton() {
+    const hasRec = this.recordings.length > 0;
+    if (this.useTgMainButton) {
+      // Custom button stays hidden in Telegram; MainButton drives the action.
+      document.getElementById('btnDone').style.display = 'none';
+      if (hasRec) tg.MainButton.show();
+      else tg.MainButton.hide();
+    } else {
+      document.getElementById('btnDone').style.display = hasRec ? 'flex' : 'none';
+    }
+  }
+
+  async deleteRecording(index) {
+    const rec = this.recordings[index];
+    if (!rec) return;
+
+    // If we were previewing this clip (or any clip), stop — its file is going
+    // away and indices are about to shift.
+    if (this.previewingIndex !== -1) {
+      this.previewAudio.pause();
+      this.previewingIndex = -1;
+    }
+
+    try {
+      await apiFetch(`${API}/api/session/${this.sessionId}/recording/${rec.index}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.error('Delete failed:', e);
+    }
+
+    // Reload session to get updated indices
+    const resp = await apiFetch(`${API}/api/session/${this.sessionId}`);
+    this.session = await resp.json();
+    this.recordings = this.session.recordings || [];
+    this._renderRecordings();
+    this._renderMarkers();
+  }
+
+  // ─── Per-recording Preview Playback (5.1) ──────────────────────────
+
+  _initPreviewEvents() {
+    this.previewAudio.addEventListener('play', () => this._updatePreviewButtons());
+    this.previewAudio.addEventListener('pause', () => this._updatePreviewButtons());
+    this.previewAudio.addEventListener('ended', () => {
+      this.previewingIndex = -1;
+      this._updatePreviewButtons();
+    });
+  }
+
+  togglePreview(index) {
+    const rec = this.recordings[index];
+    if (!rec) return;
+
+    // Tapping the same item again toggles pause/play; tapping a different
+    // item switches to it (single shared <audio>, no overlap).
+    if (this.previewingIndex === index) {
+      if (this.previewAudio.paused) {
+        this.previewAudio.play().catch(() => {});
+      } else {
+        this.previewAudio.pause();
+      }
+      return;
+    }
+
+    // Pause the main player so the two streams don't overlap.
+    if (this.isPlaying) this.audio.pause();
+
+    this.previewAudio.pause();
+    this.previewingIndex = index;
+    this.previewAudio.src = recordingUrl(this.sessionId, rec.index);
+    this.previewAudio.play().catch(e => {
+      console.warn('Preview play failed:', e);
+      this.previewingIndex = -1;
+      this._updatePreviewButtons();
+    });
+  }
+
+  _updatePreviewButtons() {
+    const playing = this.previewingIndex !== -1 && !this.previewAudio.paused;
+    document.querySelectorAll('[data-preview-btn]').forEach(btn => {
+      const idx = parseInt(btn.dataset.previewBtn, 10);
+      const isThis = playing && idx === this.previewingIndex;
+      btn.classList.toggle('playing', isThis);
+      btn.textContent = isThis ? '⏸' : '▶';
+    });
+  }
+
+  // ─── Re-record over a Comment (5.3) ────────────────────────────────
+
+  async reRecord(index) {
+    const rec = this.recordings[index];
+    if (!rec) return;
+
+    // Capture the timestamp before delete shifts indices around.
+    const ts = rec.timestamp_ms;
+
+    // Stop preview so the mic capture isn't competing with playback.
+    if (this.previewingIndex !== -1) {
+      this.previewAudio.pause();
+      this.previewingIndex = -1;
+    }
+
+    await this.deleteRecording(index);
+    this.audio.currentTime = ts / 1000;
+    this._updateTimeline();
+    await this.startRecording();
+  }
+
+  // ─── Timeline Markers ──────────────────────────────────────────────
+
+  _renderMarkers() {
+    // Remove existing markers
+    document.querySelectorAll('.timeline-marker').forEach(el => el.remove());
+    const track = document.getElementById('timelineTrack');
+
+    if (this.mode === 'comment') {
+      // Show recording positions on original audio
+      for (const rec of this.recordings) {
+        const pct = this.duration > 0 ? (rec.timestamp_ms / this.duration) * 100 : 0;
+        const marker = document.createElement('div');
+        marker.className = 'timeline-marker comment';
+        marker.style.left = pct + '%';
+        marker.title = `Comment at ${this._formatTime(rec.timestamp_ms)}`;
+        track.appendChild(marker);
+      }
+
+      // Show inherited markers from parent (dimmer)
+      for (const m of (this.session?.parent_markers || [])) {
+        const pct = this.duration > 0 ? (m.start_ms / this.duration) * 100 : 0;
+        const marker = document.createElement('div');
+        marker.className = 'timeline-marker inherited';
+        marker.style.left = pct + '%';
+        track.appendChild(marker);
+      }
+    } else {
+      // Listen mode: show comment regions
+      for (const m of this.markers) {
+        // Start marker
+        const pctStart = this.duration > 0 ? (m.start_ms / this.duration) * 100 : 0;
+        const marker = document.createElement('div');
+        marker.className = 'timeline-marker comment';
+        marker.style.left = pctStart + '%';
+        const tsLabel = this._formatTime(m.start_ms);
+        const text = (m.transcript || '').trim();
+        // Transcripts are snapshotted into result_markers at stitch time
+        // (audio_processor.stitch); fall back to a plain timestamp when one
+        // wasn't ready in time.
+        marker.title = text ? `${tsLabel}: ${text}` : `Comment at ${tsLabel}`;
+        track.appendChild(marker);
+      }
+    }
+  }
+
+  // ─── Listen Mode ───────────────────────────────────────────────────
+
+  setListenMode(mode) {
+    this.listenMode = mode;
+    document.getElementById('modeSkip').classList.toggle('active', mode === 'skip');
+    document.getElementById('modeFull').classList.toggle('active', mode === 'full');
+    document.getElementById('commentNav').style.display = mode === 'skip' ? 'flex' : 'none';
+
+    if (mode === 'skip') {
+      this.currentCommentIndex = -1;
+      this._updateCommentNav();
+    }
+  }
+
+  _handleSkipMode() {
+    if (this.markers.length === 0) return;
+    const currentMs = this.audio.currentTime * 1000;
+    const contextMs = (this.session.context_seconds || 5) * 1000;
+
+    // Find which comment we're in or approaching
+    for (let i = 0; i < this.markers.length; i++) {
+      const m = this.markers[i];
+      const contextStart = Math.max(0, m.start_ms - contextMs);
+
+      // If we're past a comment's end, check if we should skip to next
+      if (currentMs > m.end_ms + 500 && i === this.currentCommentIndex) {
+        // We've passed the current comment
+        if (i + 1 < this.markers.length) {
+          // Skip to next comment's context
+          this.currentCommentIndex = i + 1;
+          const nextContext = Math.max(0, this.markers[i + 1].start_ms - contextMs);
+          this.audio.currentTime = nextContext / 1000;
+          this._updateCommentNav();
+          return;
+        } else {
+          // Last comment done, stop or play to end
+          this.audio.pause();
+          this.currentCommentIndex = -1;
+          this._updateCommentNav();
+          return;
+        }
+      }
+    }
+
+    // If we haven't started tracking a comment yet
+    if (this.currentCommentIndex === -1 && this.markers.length > 0) {
+      const firstContext = Math.max(0, this.markers[0].start_ms - contextMs);
+      if (currentMs < firstContext) {
+        // Before first comment context, skip to it
+        this.currentCommentIndex = 0;
+        this.audio.currentTime = firstContext / 1000;
+        this._updateCommentNav();
+      }
+    }
+  }
+
+  prevComment() {
+    if (this.markers.length === 0) return;
+    const contextMs = (this.session.context_seconds || 5) * 1000;
+    this.currentCommentIndex = Math.max(0, this.currentCommentIndex - 1);
+    const m = this.markers[this.currentCommentIndex];
+    this.audio.currentTime = Math.max(0, m.start_ms - contextMs) / 1000;
+    this._updateCommentNav();
+    if (!this.isPlaying) this.audio.play().catch(() => {});
+  }
+
+  nextComment() {
+    if (this.markers.length === 0) return;
+    const contextMs = (this.session.context_seconds || 5) * 1000;
+    this.currentCommentIndex = Math.min(this.markers.length - 1, this.currentCommentIndex + 1);
+    const m = this.markers[this.currentCommentIndex];
+    this.audio.currentTime = Math.max(0, m.start_ms - contextMs) / 1000;
+    this._updateCommentNav();
+    if (!this.isPlaying) this.audio.play().catch(() => {});
+  }
+
+  _updateCommentNav() {
+    const counter = document.getElementById('commentCounter');
+    if (this.markers.length === 0) {
+      counter.textContent = 'No comments';
+    } else {
+      counter.textContent = `${this.currentCommentIndex + 1} / ${this.markers.length}`;
+    }
+  }
+
+  // ─── Finish / Stitch ──────────────────────────────────────────────
+
+  async finish() {
+    if (this.recordings.length === 0) return;
+
+    // Stop any preview before we start the long stitch.
+    if (this.previewingIndex !== -1) {
+      this.previewAudio.pause();
+      this.previewingIndex = -1;
+    }
+
+    this._showStatus(null, 'Stitching audio…');
+    if (this.useTgMainButton) tg.MainButton.showProgress();
+
+    try {
+      const kick = await apiFetch(`${API}/api/session/${this.sessionId}/stitch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!kick.ok) {
+        const err = await kick.json().catch(() => ({}));
+        throw new Error(err.error || 'Stitch failed');
+      }
+
+      // Server now runs the stitch in the background. Poll every 500ms for
+      // status; show a moving percentage while we wait.
+      while (true) {
+        await new Promise(r => setTimeout(r, 500));
+        const s = await apiFetch(`${API}/api/session/${this.sessionId}/stitch_status`);
+        if (!s.ok) {
+          const err = await s.json().catch(() => ({}));
+          throw new Error(err.error || 'Status check failed');
+        }
+        const state = await s.json();
+        if (state.status === 'done') break;
+        if (state.status === 'error') throw new Error(state.error || 'Stitch failed');
+        const pct = Math.round((state.progress || 0) * 100);
+        this._showStatus(null, `Stitching… ${pct}%`);
+      }
+
+      this._showStatus('✅', 'Done! Check your chat.');
+      if (this.useTgMainButton) tg.MainButton.hideProgress();
+
+      // Close Mini App after a moment
+      setTimeout(() => {
+        if (tg) tg.close();
+      }, 2000);
+
+    } catch (e) {
+      console.error('Stitch failed:', e);
+      if (this.useTgMainButton) tg.MainButton.hideProgress();
+      this._showStatus('❌', `Failed: ${e.message}`);
+      setTimeout(() => {
+        document.getElementById('statusOverlay').classList.add('hidden');
+      }, 3000);
+    }
+  }
+
+  // ─── Transcripts (7.2) ─────────────────────────────────────────────
+
+  _maybeStartTranscriptPoll() {
+    // Only relevant in comment mode while the server is actively transcribing.
+    if (this.mode !== 'comment' || !this.transcriptionEnabled) return;
+    if (this._transcriptPollTimer) return;
+    const missing = this.recordings.some(r => !r.transcript);
+    if (!missing) return;
+
+    this._transcriptPollAttempts = 0;
+    const tick = async () => {
+      this._transcriptPollTimer = null;
+      // ~75s of polling at 2.5s — base-model Whisper finishes a 5-30s clip
+      // well inside this on CPU. Abandon quietly after the cap so we don't
+      // hammer the API forever if a job is wedged.
+      if (this._transcriptPollAttempts++ > 30) return;
+      try {
+        const resp = await apiFetch(`${API}/api/session/${this.sessionId}`);
+        if (!resp.ok) return;
+        const fresh = await resp.json();
+        const byFilenameIdx = new Map(
+          (fresh.recordings || []).map(r => [r.index, r])
+        );
+        let changed = false;
+        for (const local of this.recordings) {
+          const fr = byFilenameIdx.get(local.index);
+          if (fr && fr.transcript && local.transcript !== fr.transcript) {
+            local.transcript = fr.transcript;
+            changed = true;
+          }
+        }
+        if (changed) this._renderRecordings();
+        const stillMissing = this.recordings.some(r => !r.transcript);
+        if (stillMissing) {
+          this._transcriptPollTimer = setTimeout(tick, 2500);
+        }
+      } catch (_e) {
+        // Network blip — try again next tick.
+        this._transcriptPollTimer = setTimeout(tick, 2500);
+      }
+    };
+    this._transcriptPollTimer = setTimeout(tick, 1500);
+  }
+
+  _escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────────────
+
+  _formatTime(ms) {
+    const totalSec = Math.floor(ms / 1000);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  }
+
+  _showStatus(emoji, text) {
+    const overlay = document.getElementById('statusOverlay');
+    overlay.classList.remove('hidden');
+    const statusText = document.getElementById('statusText');
+    
+    if (emoji) {
+      overlay.innerHTML = `
+        <div class="status-emoji">${emoji}</div>
+        <div class="status-text">${text}</div>
+      `;
+    } else {
+      overlay.innerHTML = `
+        <div class="spinner"></div>
+        <div class="status-text">${text}</div>
+      `;
+    }
+  }
+}
+
+// ─── Initialize ────────────────────────────────────────────────────────────────
+
+const app = new AudioCommentApp();
+document.addEventListener('DOMContentLoaded', () => app.init());
+</script>
+</body>
+</html>

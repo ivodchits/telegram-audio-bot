@@ -1,0 +1,6 @@
+-r requirements.txt
+
+# Optional: enables Whisper-based per-comment transcription.
+# Without this, the bot still works — transcripts simply don't appear in the
+# Mini App or the stitched-result chapter caption.
+faster-whisper>=1.0

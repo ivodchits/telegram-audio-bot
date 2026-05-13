@@ -67,7 +67,7 @@ Edit `.env`:
 ```env
 BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 BASE_URL=https://your-domain.com
-PORT=8080
+PORT=8081
 CONTEXT_SECONDS=5
 ```
 
@@ -77,7 +77,7 @@ Since Telegram Mini Apps require HTTPS:
 
 ```bash
 # Terminal 1: Start ngrok
-ngrok http 8080
+ngrok http 8081
 
 # Copy the https URL (e.g., https://abc123.ngrok-free.app)
 # Set it as BASE_URL in .env
@@ -155,7 +155,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-EXPOSE 8080
+EXPOSE 8081
 CMD ["python", "main.py"]
 ```
 

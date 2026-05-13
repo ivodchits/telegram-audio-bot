@@ -8,10 +8,10 @@ Target host so far: Fedora 44, Docker 29 installed and enabled at boot.
 ## Architecture in one line
 
 ```
-Telegram users ── HTTPS ──▶ Tailscale Funnel ──▶ tailscaled (host) ──▶ 127.0.0.1:8080 (Docker) ──▶ bot
+Telegram users ── HTTPS ──▶ Tailscale Funnel ──▶ tailscaled (host) ──▶ 127.0.0.1:8081 (Docker) ──▶ bot
 ```
 
-The Docker container's port 8080 is bound to **loopback only**, so the bot is
+The Docker container's port 8081 is bound to **loopback only**, so the bot is
 not reachable on the LAN — Tailscale on the host is the only thing that proxies
 public traffic to it.
 
@@ -115,7 +115,7 @@ is wrong because `BASE_URL` isn't set yet — that's fine, we fix it next.)
 ### Step 5 — Turn on the Funnel
 
 ```bash
-sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
+sudo tailscale serve --bg --https=443 http://127.0.0.1:8081
 sudo tailscale funnel --bg 443 on
 tailscale funnel status
 ```
@@ -229,7 +229,7 @@ The tarball includes `.env` (with your token) and `data/` (sessions + audio).
 
 ```bash
 docker compose up -d --build
-sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
+sudo tailscale serve --bg --https=443 http://127.0.0.1:8081
 sudo tailscale funnel --bg 443 on
 curl -I https://audiobot.<tailnet>.ts.net/healthz
 ```
@@ -291,8 +291,8 @@ are polling concurrently (e.g. old host wasn't shut down). Telegram returns
 409 Conflict in that case.
 
 **"address already in use" on `docker compose up`**
-Something else is on port 8080. Either kill it or set `PORT=8081` in `.env`
-(and update the `tailscale serve` target to `http://127.0.0.1:8081`).
+Something else is on port 8081. Either kill it or set `PORT=8082` in `.env`
+(and update the `tailscale serve` target to `http://127.0.0.1:8082`).
 
 **Want to roll back to a previous version**
 `docker compose down`, `git checkout <ref>`, `docker compose up -d --build`.
@@ -328,7 +328,7 @@ extra config needed.
 
 - `.env` contains the bot token — back it up alongside `data/`, but never
   commit it.
-- The host port binding `127.0.0.1:8080` means LAN devices cannot reach the
+- The host port binding `127.0.0.1:8081` means LAN devices cannot reach the
   bot directly. Everything has to go through Tailscale.
 - Funnel makes `https://<fqdn>.ts.net` publicly reachable. The bot's
   `auth_middleware` (Telegram initData HMAC verification) is the only thing

@@ -42,17 +42,17 @@ VOLUME ["/app/data"]
 
 USER app
 
-EXPOSE 8080
+EXPOSE 8081
 
 # Liveness probe — hits /healthz on the same loopback port. python+urllib
 # is in the base image so we avoid pulling in curl/wget just for this.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request, sys; \
-sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).status == 200 else 1)" \
+sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8081/healthz', timeout=2).status == 200 else 1)" \
     || exit 1
 
 # stop_grace_period in docker-compose / --time on `docker stop` should be at
-# least SHUTDOWN_DRAIN_SECONDS (default 30s) so in-flight stitches finish
+# least SHUTDOWN_DRAIN_SECONDS (default 120s) so in-flight stitches finish
 # instead of getting SIGKILL'd mid-export.
 STOPSIGNAL SIGTERM
 

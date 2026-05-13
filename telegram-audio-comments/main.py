@@ -48,8 +48,8 @@ import transcriber
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
-PORT = int(os.getenv("PORT", "8080"))
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8081")
+PORT = int(os.getenv("PORT", "8081"))
 CONTEXT_SECONDS = int(os.getenv("CONTEXT_SECONDS", "5"))
 
 # Auth & CORS
